@@ -102,8 +102,28 @@
   ```bash
   streamlit run app/streamlit_app.py
   ```
-- [ ] **10. MySQL**: SQLAlchemy-моделі (`src/meddx/db/`) + `alembic init` —
-  коли з'являться користувачі/сесії в UI.
+- [x] **10. MySQL**: SQLAlchemy 2 + Alembic
+  - `src/meddx/db/base.py` — `Base`, `make_engine`, `make_session_factory`,
+    `get_session()` context manager; SQLite PRAGMA foreign_keys=ON у тестах
+  - `src/meddx/db/models.py` — 5 моделей:
+    - `User(id, email, name, locale, created_at)`
+    - `DiagnosticSession(id=thread_id, user_id, status, phase, created_at, updated_at)`
+    - `Case(id, session_id, patient_case_json:JSON, created_at)`
+    - `CaseHypothesis(id, case_id, hypothesis_id, name, organ_system, is_must_not_miss, rank_final)`
+    - `StudentAnswer(id, session_id, ranking_json:JSON, feedback_json:JSON, created_at)`
+    - ON DELETE CASCADE: session→case→hypothesis, session→answer
+    - ON DELETE SET NULL: user→session (сесії анонімізуються, не видаляються)
+  - `src/meddx/db/repositories.py` — 4 репозиторії:
+    `UserRepository` (get_or_create), `SessionRepository` (update_phase),
+    `CaseRepository` (save_case upsert, save_hypotheses ідемпотентно,
+    update_final_ranks), `StudentAnswerRepository` (save з SynthesisResult)
+  - `alembic/versions/3468734894c4_initial_schema.py` — ручна міграція,
+    генерує коректний MySQL DDL (`alembic upgrade head --sql`)
+  - `tests/test_db.py` — 38 тестів на SQLite in-memory (без MySQL-контейнера)
+  ```bash
+  alembic upgrade head    # застосувати до MySQL (після docker compose up -d)
+  alembic downgrade -1    # відкат
+  ```
 
 ## Пізніше (з architecture overview §11)
 
