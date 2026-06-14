@@ -36,6 +36,7 @@ and ADRs.
 ## Repo map
 
 ```
+TODO.md              roadmap: setup steps + implementation order (check here first)
 docs/architecture/   architecture overview (Ukrainian)
 docs/adr/            ADRs (English, Nygard format) — README.md is the index
 src/meddx/config.py  pydantic-settings: provider keys, per-agent model map
@@ -58,6 +59,7 @@ data/                raw corpus cache (gitignored)
 docker compose up -d                  # Qdrant :6333, MySQL :3306, Langfuse :3000
 pip install -e ".[dev]"               # install package + dev tools
 streamlit run app/streamlit_app.py    # run UI
+python scripts/run_demo.py            # end-to-end graph demo (stub agents, no API keys needed)
 pytest                                # tests
 ruff check src tests                  # lint
 alembic upgrade head                  # DB migrations (once set up)
