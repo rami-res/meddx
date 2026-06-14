@@ -40,6 +40,7 @@ class DiagnosticState(BaseModel):
     # Intake gate
     phase: Phase = Phase.INTAKE
     missing_fields: list[str] = Field(default_factory=list)
+    intake_message: str | None = None  # conversational prompt generated for the student
 
     # Agent outputs (hypotheses stay UNRANKED until synthesis — anti anchoring)
     hypotheses: list[Hypothesis] = Field(default_factory=list)

@@ -33,8 +33,7 @@ def complete_case() -> PatientCase:
     )
 
 
-def test_incomplete_case_stops_at_intake_gate():
-    # Does NOT reach hypothesis_node or evidence_node — no mock needed.
+def test_incomplete_case_stops_at_intake_gate(mock_intake_llm):
     graph = build_graph()
     result = graph.invoke(
         DiagnosticState(patient_case=PatientCase(chief_complaint="Chest pain"))
@@ -45,7 +44,13 @@ def test_incomplete_case_stops_at_intake_gate():
     assert result.get("synthesis") is None  # LangGraph omits None-valued keys
 
 
-def test_complete_case_runs_end_to_end(mock_hypothesis_llm, mock_evidence):
+def test_complete_case_runs_end_to_end(
+    mock_hypothesis_llm,
+    mock_evidence,
+    mock_devils_advocate_llm,
+    mock_root_cause_llm,
+    mock_synthesis,
+):
     graph = build_graph()
     result = graph.invoke(DiagnosticState(patient_case=complete_case()))
 
@@ -74,7 +79,13 @@ def test_complete_case_runs_end_to_end(mock_hypothesis_llm, mock_evidence):
     assert unknown_citations(used, retrieved) == []
 
 
-def test_devils_advocate_view_is_blind(mock_hypothesis_llm, mock_evidence):
+def test_devils_advocate_view_is_blind(
+    mock_hypothesis_llm,
+    mock_evidence,
+    mock_devils_advocate_llm,
+    mock_root_cause_llm,
+    mock_synthesis,
+):
     """The Devil's Advocate projection must carry no ranking/ordering signal."""
     graph = build_graph()
     result = graph.invoke(DiagnosticState(patient_case=complete_case()))

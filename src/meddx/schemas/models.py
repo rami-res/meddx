@@ -90,3 +90,4 @@ class SynthesisResult(BaseModel):
     ranking: list[RankedHypothesis] = Field(default_factory=list)
     workup_plan: list[str] = Field(default_factory=list)
     evidence_summary: str = ""
+    socratic_feedback: str = ""  # comparison of student's ranking vs system's

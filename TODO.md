@@ -74,9 +74,23 @@
     симетричний retrieval (2 пошуки × N гіпотез); `_deduplicate()`; graceful
     degradation коли корпус порожній (`is_ready() = False`)
   - 20 нових тестів (без GPU, Qdrant, API-ключів)
-- [ ] **8. Решта агентів**: Intake-діалог (допит відсутніх полів),
+- [x] **8. Решта агентів**: Intake-діалог (допит відсутніх полів),
   Devil's Advocate (тільки через `blind_view()`), Root-Cause,
   Synthesis із сократівським кроком (LangGraph `interrupt()`).
+  Реалізовано:
+  - `src/meddx/agents/intake.py` — completeness gate (code, not LLM) +
+    conversational LLM question for missing fields; `route_after_intake()`
+  - `src/meddx/agents/devils_advocate.py` — `blind_view()` projection
+    (patient_case + alphabetically sorted names only, no rationale/ranking);
+    `_ChallengeOutput` list-based schema → `ChallengeReport`
+  - `src/meddx/agents/root_cause.py` — full context (case + hypotheses +
+    evidence counts + challenge) → `RootCauseAssessment`
+  - `src/meddx/agents/synthesis.py` — `interrupt()` Socratic step →
+    LLM ranking → programmatic citation attachment from `state.evidence` →
+    `assert_citations_grounded()` → `SynthesisResult`
+  - `tests/test_remaining_agents.py` — 39 unit tests for all 4 agents
+  - `tests/conftest.py` + `tests/test_graph.py` — updated with mocks for
+    all new agents; 117 tests, 0 failures
 - [ ] **9. Streamlit UI**: чат + форма кейсу + цикл `AWAITING_DATA` →
   допит → перезапуск графа (checkpointer з `thread_id`).
 - [ ] **10. MySQL**: SQLAlchemy-моделі (`src/meddx/db/`) + `alembic init` —
