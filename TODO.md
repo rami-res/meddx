@@ -91,8 +91,17 @@
   - `tests/test_remaining_agents.py` — 39 unit tests for all 4 agents
   - `tests/conftest.py` + `tests/test_graph.py` — updated with mocks for
     all new agents; 117 tests, 0 failures
-- [ ] **9. Streamlit UI**: чат + форма кейсу + цикл `AWAITING_DATA` →
-  допит → перезапуск графа (checkpointer з `thread_id`).
+- [x] **9. Streamlit UI**: `app/streamlit_app.py`
+  - `@st.cache_resource` — граф + MemorySaver checkpointer живуть між ре-рендерами
+  - Форма кейсу (2 колонки, підсвічення відсутніх полів червоним)
+  - AWAITING_DATA цикл: LLM-повідомлення + форма з передзаповненими полями
+  - 4 вкладки з результатами: Гіпотези · Докази · Адвокат диявола · Першопричина
+  - SYNTHESIS interrupt → форма ранжування → `Command(resume=...)` → Фінальний аналіз
+  - Sidebar: статус фази, лічильники, кнопка «Новий кейс»
+  - Сократівський зворотній зв'язок у виділеному блоці
+  ```bash
+  streamlit run app/streamlit_app.py
+  ```
 - [ ] **10. MySQL**: SQLAlchemy-моделі (`src/meddx/db/`) + `alembic init` —
   коли з'являться користувачі/сесії в UI.
 
