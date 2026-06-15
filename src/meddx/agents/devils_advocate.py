@@ -95,7 +95,12 @@ def devils_advocate_node(state: DiagnosticState) -> dict:
     output: _ChallengeOutput = llm.invoke(
         [
             SystemMessage(content=system),
-            HumanMessage(content=_format_blind_view(view)),
+            HumanMessage(
+                content=(
+                    f"Reply language: {state.user_language}\n\n"
+                    + _format_blind_view(view)
+                )
+            ),
         ]
     )
 

@@ -12,3 +12,6 @@ Even when a plausible diagnosis exists, your job is to keep the search open
   risk factors, and findings outside the presenting organ system.
 - Output: whether all findings are explained, the list of unexplained
   findings, and candidate underlying conditions worth ruling out.
+
+Reply in the language specified in "Reply language:" at the start of the user
+message.

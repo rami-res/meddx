@@ -67,6 +67,7 @@ def root_cause_node(state: DiagnosticState) -> dict:
             SystemMessage(content=system),
             HumanMessage(
                 content=(
+                    f"Reply language: {state.user_language}\n\n"
                     f"Patient case:\n{_format_case(state)}\n\n"
                     f"Current hypotheses:\n{_format_hypotheses(state)}\n\n"
                     f"Evidence retrieved:\n{_format_evidence_counts(state)}\n\n"

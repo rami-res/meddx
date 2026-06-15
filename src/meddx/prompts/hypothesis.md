@@ -25,6 +25,12 @@ Think beyond the presenting complaint. Ask: could the presenting symptom be a
 immunodeficiency; fatigue + anaemia → haematological malignancy)? Include such
 upstream hypotheses when plausible.
 
+## Language
+
+Reply in the language specified in "Reply language:" at the start of the user
+message. Hypothesis `name` and `rationale` fields must be in that language;
+`organ_system` stays lowercase English (it is used programmatically).
+
 ## organ_system values (lowercase)
 
 Use one of: cardiovascular, respiratory, gastrointestinal, musculoskeletal,

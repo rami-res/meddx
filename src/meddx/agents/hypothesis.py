@@ -105,7 +105,12 @@ def hypothesis_node(state: DiagnosticState) -> dict:
     result: _HypothesisList = llm.invoke(
         [
             SystemMessage(content=system),
-            HumanMessage(content=f"Patient case:\n\n{case_text}"),
+            HumanMessage(
+                content=(
+                    f"Reply language: {state.user_language}\n\n"
+                    f"Patient case:\n\n{case_text}"
+                )
+            ),
         ]
     )
 
