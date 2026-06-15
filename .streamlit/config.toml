@@ -1,0 +1,7 @@
+[server]
+# "none" stops Streamlit from walking all loaded modules (including
+# transformers/torchvision) to build a file-watch list. Without this,
+# FlagEmbedding's transitive transformers dependency floods the console
+# with ModuleNotFoundError: No module named 'torchvision' warnings.
+# Reload the browser manually after code changes instead.
+fileWatcherType = "none"

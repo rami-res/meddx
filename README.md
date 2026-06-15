@@ -207,6 +207,70 @@ make lint           # ruff
 
 ---
 
+## Оцінка якості — golden set
+
+`scripts/run_eval.py` запускає повний пайплайн на **10 клінічних вінєтках** з відомими діагнозами
+і вимірює 6 метрик. API-ключ потрібен; GPU і Qdrant — опційно.
+
+### Метрики
+
+| Метрика | Що вимірює | Ціль |
+|---|---|---|
+| `mnm_recall` | Чи всі «обов'язково-не-пропустити» діагнози присутні в гіпотезах | **100 %** — safety invariant |
+| `top5_recall` | Правильний діагноз у топ-5 гіпотезах | ≥ 80 % |
+| `top3_recall` | Правильний діагноз у топ-3 гіпотезах | ≥ 60 % |
+| `hyp_count ≥ 5` | Система генерує ≥ 5 гіпотез (архітектурний інваріант) | 100 % |
+| `evidence_symmetry` | Частка гіпотез з доказами ЗА і ПРОТИ одночасно | ≥ 70 % |
+| `citation_count` | Загальна кількість цитат (0 якщо Qdrant порожній) | — |
+
+`mnm_recall = 100 %` — єдина метрика з жорстким порогом: система **ніколи** не повинна
+пропускати небезпечний діагноз (SAH, PE, septic arthritis тощо).
+Скрипт повертає exit code 1 якщо хоч один кейс порушив цей інваріант.
+
+### Кейси golden set
+
+| ID | Діагноз | Bias, що тестується |
+|---|---|---|
+| case_01 | STEMI | Anchoring |
+| case_02 | Subarachnoid haemorrhage | Anchoring |
+| case_03 | Pulmonary embolism | Confirmation bias |
+| case_04 | Bacterial meningitis | Premature closure |
+| case_05 | Hypertrophic cardiomyopathy | Availability bias |
+| case_06 | Hodgkin lymphoma | Search satisficing |
+| case_07 | Acute cholangitis | Premature closure |
+| case_08 | Lung cancer | Availability bias |
+| case_09 | Autoimmune haemolytic anaemia | Confirmation bias |
+| case_10 | Septic arthritis | Search satisficing |
+
+### Запуск
+
+```bash
+# Повна оцінка (всі 10 кейсів, ~10–20 хв залежно від моделі):
+make eval
+
+# Швидка перевірка — перші 3 кейси:
+make eval EVAL_CASES=3
+
+# Зберегти результати в JSON:
+make eval EVAL_OUT=data/my_eval.json
+
+# Напряму через Python:
+python scripts/run_eval.py --cases 5 --out data/eval.json
+```
+
+Результат у терміналі:
+```
+  must-not-miss recall              10/10  ← ✓ PASS
+  top-5 recall                       8/10
+  top-3 recall                       6/10
+  hypotheses ≥ 5 (invariant)        10/10
+  avg organ systems covered           4.2
+  avg evidence symmetry              74%
+  avg citations per case             12.3
+```
+
+---
+
 ## Структура репозиторію
 
 ```
@@ -225,6 +289,7 @@ scripts/
   ingest.py                 — CLI інжесту (--source auto|europe-pmc|ncbi → BGE-M3 → Qdrant)
   corpus_status.py          — стан Qdrant-колекції
   corpus_reset.py           — видалення колекції з підтвердженням
+  run_eval.py               — golden-set оцінка (10 кейсів, 6 метрик)
   run_demo.py               — демо без API-ключів (stub-агенти)
 docs/
   architecture/             — архітектурний огляд (українська)

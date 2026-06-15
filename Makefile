@@ -240,6 +240,18 @@ test-db:  ## Run only DB layer tests
 lint:  ## Run ruff linter
 	$(RUFF) check src tests
 
+# ---------------------------------------------------------------------------
+# Evaluation — golden clinical cases
+# ---------------------------------------------------------------------------
+
+EVAL_CASES ?=   # empty = all 10; set to N to run first N: make eval EVAL_CASES=3
+EVAL_OUT   ?= data/eval.json
+
+eval:  ## Run golden-set evaluation (requires LLM API key)  →  make eval EVAL_CASES=3
+	$(PYTHON) scripts/run_eval.py \
+	    $(if $(EVAL_CASES),--cases $(EVAL_CASES),) \
+	    --out $(EVAL_OUT)
+
 lint-fix:  ## Auto-fix ruff lint errors
 	$(RUFF) check --fix src tests
 
