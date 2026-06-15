@@ -12,6 +12,7 @@ from meddx.db.repositories import (
     StudentAnswerRepository,
     UserRepository,
 )
+from meddx.db.session_store import DiagnosticSessionStore
 
 __all__ = [
     # base
@@ -30,4 +31,6 @@ __all__ = [
     "SessionRepository",
     "StudentAnswerRepository",
     "UserRepository",
+    # high-level facade
+    "DiagnosticSessionStore",
 ]

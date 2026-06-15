@@ -19,6 +19,9 @@ import streamlit as st
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command
 
+from meddx.config import settings
+from meddx.db import make_engine, make_session_factory
+from meddx.db.session_store import DiagnosticSessionStore
 from meddx.graph import build_graph
 from meddx.schemas import (
     UNAVAILABLE,
@@ -53,6 +56,29 @@ def _get_graph():
     return build_graph(checkpointer=checkpointer)
 
 
+@st.cache_resource
+def _get_db_factory():
+    """Engine + session factory, created once per process.
+
+    Returns (factory, None) on success or (None, error_str) when the DB
+    URL is misconfigured. Actual connection errors are caught per-operation
+    inside DiagnosticSessionStore, not here (engine creation is lazy).
+    """
+    try:
+        engine = make_engine(settings.mysql_url)
+        return make_session_factory(engine), None
+    except Exception as exc:
+        return None, str(exc)
+
+
+def _get_store() -> tuple[DiagnosticSessionStore | None, str | None]:
+    """Return (store, error). Store is None when factory init failed."""
+    factory, err = _get_db_factory()
+    if factory is None:
+        return None, err
+    return DiagnosticSessionStore(factory), None
+
+
 # ---------------------------------------------------------------------------
 # Session state helpers
 # ---------------------------------------------------------------------------
@@ -78,6 +104,7 @@ def _reset() -> None:
     st.session_state.result = None
     st.session_state.case_values = {}
     st.session_state.error = None
+    st.session_state.pop("db_error", None)  # re-set sentinel so status re-evaluates
 
 
 # ---------------------------------------------------------------------------
@@ -93,9 +120,23 @@ def _invoke(patient_case: PatientCase) -> None:
             config=_config(),
         )
         st.session_state.result = result
+        _db_after_invoke(patient_case, result)
     except Exception as exc:
         st.session_state.error = str(exc)
     st.rerun()
+
+
+def _db_after_invoke(patient_case: PatientCase, result: dict) -> None:
+    """Persist session + case + phase after a successful graph.invoke()."""
+    store, factory_err = _get_store()
+    if factory_err:
+        st.session_state.db_error = factory_err
+        return
+    thread_id = st.session_state.thread_id
+    err = store.open_session(thread_id, patient_case)
+    if err is None:
+        err = store.record_phase(thread_id, result)
+    st.session_state.db_error = err  # None = success
 
 
 def _resume(student_ranking: str) -> None:
@@ -107,9 +148,25 @@ def _resume(student_ranking: str) -> None:
             config=_config(),
         )
         st.session_state.result = result
+        _db_after_resume(student_ranking, result)
     except Exception as exc:
         st.session_state.error = str(exc)
     st.rerun()
+
+
+def _db_after_resume(student_ranking: str, result: dict) -> None:
+    """Persist student answer + final ranks once synthesis completes."""
+    store, factory_err = _get_store()
+    if factory_err:
+        st.session_state.db_error = factory_err
+        return
+    thread_id = st.session_state.thread_id
+    synthesis: SynthesisResult | None = result.get("synthesis")
+    if synthesis is not None:
+        err = store.record_answer(thread_id, student_ranking, synthesis)
+    else:
+        err = store.record_phase(thread_id, result)
+    st.session_state.db_error = err
 
 
 # ---------------------------------------------------------------------------
@@ -138,6 +195,29 @@ def _normalize_field(raw: str) -> str | None:
     if stripped.lower() in _NA_SYNONYMS:
         return UNAVAILABLE
     return stripped
+
+
+# ---------------------------------------------------------------------------
+# Sidebar helpers
+# ---------------------------------------------------------------------------
+
+_DB_UNSET = object()  # sentinel: no DB write has been attempted yet this session
+
+
+def _render_db_status() -> None:
+    """Show a compact MySQL status line in the sidebar.
+
+    Shown only after the first DB write attempt so the status is meaningful.
+    """
+    db_error = st.session_state.get("db_error", _DB_UNSET)
+    if db_error is _DB_UNSET:
+        return  # no write attempted yet
+    if db_error is None:
+        st.caption("🟢 MySQL")
+    else:
+        st.caption("🔴 MySQL недоступний")
+        with st.expander("Деталі помилки"):
+            st.code(str(db_error)[:400])
 
 
 # ---------------------------------------------------------------------------
@@ -187,6 +267,7 @@ def _render_sidebar(result: dict | None) -> None:
             st.rerun()
 
         st.divider()
+        _render_db_status()
         st.caption(
             "Джерела: Europe PMC · PubMed · PMC · DOAJ · BMC · PLOS · Cureus  \n"
             "Ранжування за рівнем доказовості, а не протоколами однієї країни."
