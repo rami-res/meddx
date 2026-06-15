@@ -1,8 +1,14 @@
-"""Corpus ingestion: Europe PMC → chunking → BGE-M3 → Qdrant.
+"""Corpus ingestion: literature source → chunking → BGE-M3 → Qdrant.
 
 Run:
     python scripts/ingest.py --query "chest pain differential diagnosis" --limit 100
     python scripts/ingest.py --query "fever of unknown origin" --limit 50 --min-year 2015
+    python scripts/ingest.py --query "dyspnea causes" --source ncbi    # force NCBI if EBI is down
+
+Source options:
+  auto         Try Europe PMC first; fall back to NCBI on any HTTP error (default)
+  europe-pmc   Europe PMC only (EBI host — may be blocked on some networks)
+  ncbi         PubMed E-utilities only (NIH host — reliable worldwide)
 
 Prerequisites:
     docker compose up -d          # Qdrant must be running
@@ -13,6 +19,7 @@ Prerequisites:
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -21,7 +28,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from meddx.config import settings
 from meddx.ingestion.chunker import chunk_article
-from meddx.ingestion.europe_pmc import EuropePMCClient
+from meddx.ingestion.europe_pmc import ArticleRecord, EuropePMCClient
+from meddx.ingestion.ncbi import NCBIClient
 from meddx.rag.embedder import BGE_M3Embedder
 from meddx.rag.store import QdrantStore
 
@@ -32,9 +40,49 @@ def _progress(current: int, total: int, width: int = 40) -> str:
     return f"[{bar}] {current}/{total}"
 
 
+def _fetch(
+    source: str,
+    query: str,
+    limit: int,
+    min_year: int | None,
+    max_year: int | None,
+    ncbi_api_key: str | None,
+) -> list[ArticleRecord]:
+    """Fetch articles using the requested source strategy.
+
+    'auto': try Europe PMC; on any HTTP/connection error, fall back to NCBI.
+    'europe-pmc': Europe PMC only (raises on error).
+    'ncbi': NCBI E-utilities only.
+    """
+    fetch_kwargs = dict(query=query, limit=limit, min_year=min_year, max_year=max_year)
+
+    if source == "ncbi":
+        print(f"  source: NCBI E-utilities (PubMed)")
+        with NCBIClient(api_key=ncbi_api_key) as c:
+            return c.search(**fetch_kwargs)
+
+    if source == "europe-pmc":
+        print(f"  source: Europe PMC (EBI)")
+        with EuropePMCClient() as c:
+            return c.search(**fetch_kwargs)
+
+    # auto: try Europe PMC, fall back to NCBI on any error
+    print(f"  source: auto (Europe PMC → NCBI fallback)")
+    try:
+        with EuropePMCClient() as c:
+            articles = c.search(**fetch_kwargs)
+        print(f"  backend: Europe PMC ✓")
+        return articles
+    except Exception as epmc_err:
+        print(f"  Europe PMC unavailable ({type(epmc_err).__name__}: {epmc_err})")
+        print(f"  Falling back to NCBI E-utilities…")
+        with NCBIClient(api_key=ncbi_api_key) as c:
+            return c.search(**fetch_kwargs)
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
-        description="Ingest medical literature from Europe PMC into Qdrant"
+        description="Ingest medical literature into Qdrant"
     )
     parser.add_argument(
         "--query", required=True,
@@ -64,24 +112,33 @@ def main(argv: list[str] | None = None) -> None:
         "--collection", default=settings.qdrant_collection,
         help=f"Qdrant collection name (default: {settings.qdrant_collection})",
     )
+    parser.add_argument(
+        "--source",
+        choices=["auto", "europe-pmc", "ncbi"],
+        default="auto",
+        help="Article source: 'auto' tries Europe PMC then falls back to NCBI (default: auto)",
+    )
     args = parser.parse_args(argv)
 
+    ncbi_api_key: str | None = os.getenv("NCBI_API_KEY")
+
     # ── 1. Fetch articles ──────────────────────────────────────────────────
-    print(f"\n[1/4] Fetching from Europe PMC  query={args.query!r}  limit={args.limit}")
-    with EuropePMCClient() as client:
-        articles = client.search(
-            args.query,
-            limit=args.limit,
-            min_year=args.min_year,
-            max_year=args.max_year,
-        )
+    print(f"\n[1/4] Fetching  query={args.query!r}  limit={args.limit}")
+    articles = _fetch(
+        source=args.source,
+        query=args.query,
+        limit=args.limit,
+        min_year=args.min_year,
+        max_year=args.max_year,
+        ncbi_api_key=ncbi_api_key,
+    )
 
     usable = [a for a in articles if a.has_usable_text]
     skipped = len(articles) - len(usable)
     print(f"  fetched={len(articles)}  usable={len(usable)}  skipped (no abstract)={skipped}")
 
     if not usable:
-        print("No usable articles — try a different query or higher --limit.")
+        print("No usable articles — try a different query, higher --limit, or --source ncbi.")
         return
 
     # Study-type breakdown

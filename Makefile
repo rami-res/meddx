@@ -116,27 +116,29 @@ app-debug:  ## Run Streamlit with verbose logging
 # No LLM keys needed — ingestion uses only BGE-M3 locally.
 # ---------------------------------------------------------------------------
 
-# Overridable per-call: make ingest Q="sepsis" L=200 Y=2015 BS=8
-Q  ?= chest pain differential diagnosis
-L  ?= 100
-Y  ?= 2010
-BS ?= 12
+# Overridable per-call: make ingest Q="sepsis" L=200 Y=2015 BS=8 SOURCE=ncbi
+Q      ?= chest pain differential diagnosis
+L      ?= 100
+Y      ?= 2010
+BS     ?= 12
+SOURCE ?= auto   # auto | europe-pmc | ncbi  (auto tries EBI, falls back to NCBI)
 
-ingest:  ## Ingest one query  →  make ingest Q="headache" L=200 Y=2015
+ingest:  ## Ingest one query  →  make ingest Q="headache" L=200 SOURCE=ncbi
 	$(PYTHON) scripts/ingest.py \
 	    --query "$(Q)" \
 	    --limit $(L) \
 	    --min-year $(Y) \
-	    --batch-size $(BS)
+	    --batch-size $(BS) \
+	    --source $(SOURCE)
 
 # ---------------------------------------------------------------------------
 # ingest-demo: quick smoke-test (3 topics, 50 articles each, ~5 min on GPU)
 # ---------------------------------------------------------------------------
 
 ingest-demo:  ## Quick corpus smoke-test: 3 topics × 50 articles (~5 min)
-	$(PYTHON) scripts/ingest.py --query "chest pain differential diagnosis"  --limit 50 --min-year 2015
-	$(PYTHON) scripts/ingest.py --query "fever of unknown origin"             --limit 50 --min-year 2015
-	$(PYTHON) scripts/ingest.py --query "dyspnea acute causes"               --limit 50 --min-year 2015
+	$(PYTHON) scripts/ingest.py --query "chest pain differential diagnosis"  --limit 50 --min-year 2015 --source $(SOURCE)
+	$(PYTHON) scripts/ingest.py --query "fever of unknown origin"             --limit 50 --min-year 2015 --source $(SOURCE)
+	$(PYTHON) scripts/ingest.py --query "dyspnea acute causes"               --limit 50 --min-year 2015 --source $(SOURCE)
 	@$(MAKE) corpus-status
 
 # ---------------------------------------------------------------------------
@@ -151,63 +153,63 @@ ingest-corpus:  ## Full corpus: 15 clinical topics × 100–150 articles (~30 mi
 	@echo ""
 	@echo "[1/15] Chest pain"
 	$(PYTHON) scripts/ingest.py --query "chest pain differential diagnosis myocardial infarction" \
-	    --limit 150 --min-year 2010 --batch-size $(BS)
+	    --limit 150 --min-year 2010 --batch-size $(BS) --source $(SOURCE)
 	@echo ""
 	@echo "[2/15] Dyspnea / breathlessness"
 	$(PYTHON) scripts/ingest.py --query "dyspnea breathlessness acute causes pulmonary embolism" \
-	    --limit 150 --min-year 2010 --batch-size $(BS)
+	    --limit 150 --min-year 2010 --batch-size $(BS) --source $(SOURCE)
 	@echo ""
 	@echo "[3/15] Fever of unknown origin"
 	$(PYTHON) scripts/ingest.py --query "fever of unknown origin etiology diagnosis" \
-	    --limit 150 --min-year 2010 --batch-size $(BS)
+	    --limit 150 --min-year 2010 --batch-size $(BS) --source $(SOURCE)
 	@echo ""
 	@echo "[4/15] Headache"
 	$(PYTHON) scripts/ingest.py --query "headache differential diagnosis secondary causes" \
-	    --limit 100 --min-year 2010 --batch-size $(BS)
+	    --limit 100 --min-year 2010 --batch-size $(BS) --source $(SOURCE)
 	@echo ""
 	@echo "[5/15] Acute abdominal pain"
 	$(PYTHON) scripts/ingest.py --query "acute abdominal pain differential diagnosis appendicitis" \
-	    --limit 150 --min-year 2010 --batch-size $(BS)
+	    --limit 150 --min-year 2010 --batch-size $(BS) --source $(SOURCE)
 	@echo ""
 	@echo "[6/15] Jaundice"
 	$(PYTHON) scripts/ingest.py --query "jaundice etiology hepatitis cholestasis diagnosis" \
-	    --limit 100 --min-year 2010 --batch-size $(BS)
+	    --limit 100 --min-year 2010 --batch-size $(BS) --source $(SOURCE)
 	@echo ""
 	@echo "[7/15] Hemoptysis"
 	$(PYTHON) scripts/ingest.py --query "hemoptysis causes pulmonary tuberculosis lung cancer" \
-	    --limit 100 --min-year 2010 --batch-size $(BS)
+	    --limit 100 --min-year 2010 --batch-size $(BS) --source $(SOURCE)
 	@echo ""
 	@echo "[8/15] Edema"
 	$(PYTHON) scripts/ingest.py --query "peripheral edema lower extremity causes heart failure" \
-	    --limit 100 --min-year 2010 --batch-size $(BS)
+	    --limit 100 --min-year 2010 --batch-size $(BS) --source $(SOURCE)
 	@echo ""
 	@echo "[9/15] Syncope"
 	$(PYTHON) scripts/ingest.py --query "syncope etiology cardiovascular vasovagal diagnosis" \
-	    --limit 100 --min-year 2010 --batch-size $(BS)
+	    --limit 100 --min-year 2010 --batch-size $(BS) --source $(SOURCE)
 	@echo ""
 	@echo "[10/15] Unexplained weight loss"
 	$(PYTHON) scripts/ingest.py --query "unexplained weight loss malignancy cancer differential diagnosis" \
-	    --limit 100 --min-year 2010 --batch-size $(BS)
+	    --limit 100 --min-year 2010 --batch-size $(BS) --source $(SOURCE)
 	@echo ""
 	@echo "[11/15] Anemia"
 	$(PYTHON) scripts/ingest.py --query "anemia differential diagnosis iron deficiency hemolytic" \
-	    --limit 100 --min-year 2010 --batch-size $(BS)
+	    --limit 100 --min-year 2010 --batch-size $(BS) --source $(SOURCE)
 	@echo ""
 	@echo "[12/15] Hematuria"
 	$(PYTHON) scripts/ingest.py --query "hematuria etiology urological kidney diagnosis" \
-	    --limit 100 --min-year 2010 --batch-size $(BS)
+	    --limit 100 --min-year 2010 --batch-size $(BS) --source $(SOURCE)
 	@echo ""
 	@echo "[13/15] Altered mental status / delirium"
 	$(PYTHON) scripts/ingest.py --query "delirium altered mental status encephalopathy etiology" \
-	    --limit 100 --min-year 2010 --batch-size $(BS)
+	    --limit 100 --min-year 2010 --batch-size $(BS) --source $(SOURCE)
 	@echo ""
 	@echo "[14/15] Joint pain / arthritis"
 	$(PYTHON) scripts/ingest.py --query "arthritis joint pain differential diagnosis rheumatoid" \
-	    --limit 100 --min-year 2010 --batch-size $(BS)
+	    --limit 100 --min-year 2010 --batch-size $(BS) --source $(SOURCE)
 	@echo ""
 	@echo "[15/15] Hypertension secondary causes"
 	$(PYTHON) scripts/ingest.py --query "secondary hypertension causes endocrine renal" \
-	    --limit 100 --min-year 2010 --batch-size $(BS)
+	    --limit 100 --min-year 2010 --batch-size $(BS) --source $(SOURCE)
 	@echo ""
 	@echo "=== Ingestion complete ==="
 	@$(MAKE) corpus-status
