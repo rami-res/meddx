@@ -1,0 +1,1186 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MedDx — Архітектура системи</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:     #0f172a;
+  --card:   #1e293b;
+  --card2:  #253047;
+  --blue:   #3b82f6;
+  --cyan:   #06b6d4;
+  --green:  #10b981;
+  --amber:  #f59e0b;
+  --red:    #ef4444;
+  --purple: #8b5cf6;
+  --text:   #f1f5f9;
+  --muted:  #94a3b8;
+  --border: #334155;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* ── Layout ────────────────────────────────────── */
+.pres { height: 100vh; display: flex; flex-direction: column; }
+
+.progress { height: 3px; background: var(--border); flex-shrink: 0; }
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--blue), var(--cyan));
+  transition: width 0.4s ease;
+}
+
+.track-wrap { flex: 1; overflow: hidden; position: relative; }
+.track {
+  display: flex;
+  height: 100%;
+  transition: transform 0.42s cubic-bezier(.4,0,.2,1);
+}
+
+.slide {
+  min-width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 44px 88px;
+  overflow-y: auto;
+}
+.slide.center { align-items: center; text-align: center; }
+
+/* ── Nav ───────────────────────────────────────── */
+.nav {
+  display: flex; align-items: center; justify-content: center;
+  gap: 18px; padding: 10px;
+  background: rgba(0,0,0,.35); flex-shrink: 0;
+}
+.nav button {
+  background: var(--card); border: 1px solid var(--border);
+  color: var(--text); width: 38px; height: 38px;
+  border-radius: 8px; cursor: pointer; font-size: 16px;
+  transition: all .2s;
+}
+.nav button:hover:not(:disabled) { background: var(--blue); border-color: var(--blue); }
+.nav button:disabled { opacity: .3; cursor: default; }
+.counter { font-size: 13px; color: var(--muted); min-width: 56px; text-align: center; }
+.hint { font-size: 12px; color: var(--border); }
+
+/* ── Typography ────────────────────────────────── */
+h1 { font-size: clamp(2em, 4vw, 3.4em); font-weight: 800; line-height: 1.1; }
+h2 { font-size: clamp(1.4em, 2.5vw, 2em); font-weight: 700; }
+h3 { font-size: 1.1em; font-weight: 700; margin-bottom: 8px; }
+p  { color: var(--muted); line-height: 1.7; font-size: .95em; }
+
+.gradient-text {
+  background: linear-gradient(135deg, #fff 0%, var(--cyan) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.accent-bar {
+  width: 56px; height: 4px;
+  background: linear-gradient(90deg, var(--blue), var(--cyan));
+  border-radius: 2px; margin: 14px 0 24px;
+}
+.section-label {
+  font-size: .72em; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--cyan); margin-bottom: 12px;
+}
+
+/* ── Tags ──────────────────────────────────────── */
+.tag {
+  display: inline-block; padding: 3px 10px; border-radius: 20px;
+  font-size: .72em; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+}
+.t-blue   { background: rgba(59,130,246,.15);  color: var(--blue);   }
+.t-cyan   { background: rgba(6,182,212,.15);   color: var(--cyan);   }
+.t-green  { background: rgba(16,185,129,.15);  color: var(--green);  }
+.t-amber  { background: rgba(245,158,11,.15);  color: var(--amber);  }
+.t-red    { background: rgba(239,68,68,.15);   color: var(--red);    }
+.t-purple { background: rgba(139,92,246,.15);  color: var(--purple); }
+
+/* ── Cards / Grid ──────────────────────────────── */
+.grid   { display: grid; gap: 14px; width: 100%; }
+.g-2    { grid-template-columns: 1fr 1fr; }
+.g-3    { grid-template-columns: 1fr 1fr 1fr; }
+.g-4    { grid-template-columns: repeat(4, 1fr); }
+.g-3-1  { grid-template-columns: 3fr 1fr; }
+.g-1-2  { grid-template-columns: 1fr 2fr; }
+
+.card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 18px 20px;
+}
+.card.b-blue   { border-left: 3px solid var(--blue);   }
+.card.b-cyan   { border-left: 3px solid var(--cyan);   }
+.card.b-green  { border-left: 3px solid var(--green);  }
+.card.b-amber  { border-left: 3px solid var(--amber);  }
+.card.b-red    { border-left: 3px solid var(--red);    }
+.card.b-purple { border-left: 3px solid var(--purple); }
+
+/* ── Pipeline ──────────────────────────────────── */
+.pipeline {
+  display: flex; align-items: center; justify-content: center;
+  gap: 0; width: 100%; flex-wrap: wrap; row-gap: 12px;
+}
+.p-node {
+  border: 2px solid; border-radius: 10px;
+  padding: 12px 16px; text-align: center;
+  font-size: .82em; font-weight: 700;
+  cursor: default; transition: transform .2s, box-shadow .2s;
+  min-width: 90px;
+}
+.p-node:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+.p-arrow { color: var(--muted); font-size: 1.1em; padding: 0 6px; flex-shrink: 0; }
+.p-intake  { border-color: var(--blue);   color: var(--blue);   background: rgba(59,130,246,.08);  }
+.p-hyp     { border-color: var(--cyan);   color: var(--cyan);   background: rgba(6,182,212,.08);   }
+.p-ev      { border-color: var(--green);  color: var(--green);  background: rgba(16,185,129,.08);  }
+.p-da      { border-color: var(--red);    color: var(--red);    background: rgba(239,68,68,.08);   }
+.p-rc      { border-color: var(--amber);  color: var(--amber);  background: rgba(245,158,11,.08);  }
+.p-syn     { border-color: var(--purple); color: var(--purple); background: rgba(139,92,246,.08);  }
+.p-done    { border-color: var(--green);  color: var(--green);  background: rgba(16,185,129,.12);  }
+
+/* ── Code ──────────────────────────────────────── */
+code {
+  font-family: 'JetBrains Mono','Fira Code','Courier New', monospace;
+  font-size: .82em; background: #0d1117;
+  border-radius: 5px; padding: 2px 6px; color: var(--cyan);
+}
+pre {
+  font-family: 'JetBrains Mono','Fira Code','Courier New', monospace;
+  font-size: .78em; background: #0d1117;
+  border-radius: 10px; padding: 18px 22px; color: var(--text);
+  border: 1px solid var(--border); line-height: 1.65;
+  overflow-x: auto; width: 100%;
+}
+.kw  { color: var(--purple); }
+.fn  { color: var(--blue); }
+.st  { color: var(--green); }
+.cm  { color: #64748b; }
+.nu  { color: var(--amber); }
+
+/* ── Table ─────────────────────────────────────── */
+table { width: 100%; border-collapse: collapse; font-size: .87em; }
+th {
+  background: var(--card2); padding: 9px 14px;
+  text-align: left; color: var(--muted); font-weight: 600;
+  border-bottom: 1px solid var(--border);
+}
+td {
+  padding: 9px 14px; border-bottom: 1px solid rgba(51,65,85,.5);
+  vertical-align: top; color: var(--muted);
+}
+td strong { color: var(--text); }
+tr:last-child td { border-bottom: none; }
+
+/* ── Metrics ───────────────────────────────────── */
+.metric {
+  display: flex; flex-direction: column; align-items: center;
+  text-align: center; padding: 18px; background: var(--card);
+  border-radius: 12px; border: 1px solid var(--border);
+}
+.metric-val { font-size: 2.2em; font-weight: 800; line-height: 1; margin-bottom: 6px; }
+.metric-lbl { font-size: .75em; color: var(--muted); line-height: 1.4; }
+
+/* ── Lists ─────────────────────────────────────── */
+ul.sl { list-style: none; display: flex; flex-direction: column; gap: 9px; }
+ul.sl li { color: var(--muted); font-size: .93em; line-height: 1.5; display: flex; gap: 8px; }
+ul.sl li::before { content: "→"; color: var(--cyan); flex-shrink: 0; font-weight: 700; }
+
+/* ── Roadmap ───────────────────────────────────── */
+.rm-phase {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px 20px;
+}
+.rm-title { font-weight: 700; font-size: .95em; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.rm-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.rm-items { display: flex; flex-direction: column; gap: 6px; }
+.rm-item { font-size: .82em; color: var(--muted); display: flex; gap: 8px; }
+.rm-item::before { content: "·"; color: var(--border); flex-shrink: 0; font-size: 1.2em; line-height: 1.3; }
+
+/* ── Helpers ───────────────────────────────────── */
+.w-full { width: 100%; }
+.mt-1 { margin-top: 6px; }
+.mt-2 { margin-top: 12px; }
+.mt-3 { margin-top: 20px; }
+.mt-4 { margin-top: 28px; }
+.mb-2 { margin-bottom: 12px; }
+.mb-3 { margin-bottom: 20px; }
+.gap-col { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.row { display: flex; gap: 12px; align-items: center; }
+.em-b { color: var(--blue);   font-weight: 600; }
+.em-c { color: var(--cyan);   font-weight: 600; }
+.em-g { color: var(--green);  font-weight: 600; }
+.em-a { color: var(--amber);  font-weight: 600; }
+.em-r { color: var(--red);    font-weight: 600; }
+.em-p { color: var(--purple); font-weight: 600; }
+.badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 50%;
+  font-size: .8em; font-weight: 800; flex-shrink: 0;
+}
+.inv-box {
+  background: rgba(16,185,129,.08); border: 1px solid var(--green);
+  border-radius: 8px; padding: 10px 14px;
+  font-size: .83em; color: var(--green);
+}
+.warn-box {
+  background: rgba(239,68,68,.08); border: 1px solid rgba(239,68,68,.3);
+  border-radius: 8px; padding: 10px 14px;
+  font-size: .83em; color: var(--red);
+}
+.info-box {
+  background: rgba(59,130,246,.08); border: 1px solid rgba(59,130,246,.3);
+  border-radius: 8px; padding: 10px 14px;
+  font-size: .83em; color: var(--blue);
+}
+.divider { height: 1px; background: var(--border); width: 100%; margin: 16px 0; }
+.slide-bg-glow {
+  background: radial-gradient(ellipse at 20% 50%, rgba(59,130,246,.12) 0%, transparent 65%),
+              radial-gradient(ellipse at 80% 20%, rgba(6,182,212,.08) 0%, transparent 60%);
+}
+</style>
+</head>
+<body>
+
+<div class="pres">
+  <div class="progress"><div class="progress-fill" id="pfill"></div></div>
+
+  <div class="track-wrap">
+    <div class="track" id="track">
+
+      <!-- ═══════════════════════════════════════════════════════ SLIDE 1 — Cover -->
+      <div class="slide center slide-bg-glow" style="align-items:center;">
+        <div style="max-width:780px;">
+          <div class="tag t-cyan" style="margin-bottom:20px;">RAG Agentic AI Engineer · Курсовий проєкт</div>
+          <h1 class="gradient-text" style="font-size:clamp(2.4em,5vw,4em);margin-bottom:16px;">MedDx</h1>
+          <h2 style="font-weight:400;color:var(--muted);font-size:clamp(1em,2vw,1.4em);margin-bottom:32px;line-height:1.5;">
+            Багатоагентна RAG-система протидії когнітивним упередженням<br>у диференційній діагностиці
+          </h2>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:36px;">
+            <span class="tag t-blue">LangGraph</span>
+            <span class="tag t-cyan">RAG · BGE-M3</span>
+            <span class="tag t-green">Qdrant</span>
+            <span class="tag t-amber">MySQL</span>
+            <span class="tag t-purple">Streamlit</span>
+            <span class="tag t-red">6 агентів</span>
+          </div>
+          <div class="warn-box" style="max-width:500px;margin:0 auto;text-align:left;">
+            ⚠️ <strong>Лише для навчання.</strong> Не замінює лікаря і не призначений для клінічного застосування.
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════ SLIDE 2 — Problem -->
+      <div class="slide">
+        <div class="section-label">Проблема</div>
+        <h2 class="mb-3">Когнітивні упередження вбивають</h2>
+        <p class="mb-3" style="max-width:640px;">
+          До <em class="em-r">40–70 % діагностичних помилок</em> спричинені когнітивними упередженнями —
+          і жоден навчальний матеріал не може їх усунути лише нагадуванням у тексті.
+          MedDx протидіє кожному упередженню <em class="em-c">окремим архітектурним механізмом</em>.
+        </p>
+        <div class="grid g-2 w-full mt-2" style="max-width:900px;">
+          <div class="card b-red">
+            <div class="row mb-2"><span class="tag t-red">Anchoring</span></div>
+            <h3>Ефект якоря</h3>
+            <p>Перша гіпотеза стає «якорем» — лікар шукає підтвердження, ігноруючи альтернативи.</p>
+            <div class="mt-2 inv-box">→ Hypothesis-агент генерує ≥ 5 гіпотез <em>до</em> будь-якого ранжування</div>
+          </div>
+          <div class="card b-amber">
+            <div class="row mb-2"><span class="tag t-amber">Premature Closure</span></div>
+            <h3>Передчасне закриття</h3>
+            <p>Діагноз ставиться до повного збору даних — «класична» клініка відволікає увагу.</p>
+            <div class="mt-2 inv-box">→ Intake gate: PatientCase блокує pipeline до заповнення всіх полів</div>
+          </div>
+          <div class="card b-blue">
+            <div class="row mb-2"><span class="tag t-blue">Confirmation Bias</span></div>
+            <h3>Упередження підтвердження</h3>
+            <p>Лікар шукає лише докази на користь вже обраного діагнозу, ігноруючи спростування.</p>
+            <div class="mt-2 inv-box">→ Evidence-агент: симетричний retrieval — ЗА і ПРОТИ окремо</div>
+          </div>
+          <div class="card b-purple">
+            <div class="row mb-2"><span class="tag t-purple">Search Satisficing</span></div>
+            <h3>Зупинка на першому правдоподібному</h3>
+            <p>Щойно знайдено «достатньо» обґрунтовану відповідь — пошук припиняється.</p>
+            <div class="mt-2 inv-box">→ Root-Cause агент: чи пояснює діагноз <em>усі</em> знахідки?</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════ SLIDE 3 — Architecture overview -->
+      <div class="slide">
+        <div class="section-label">Архітектура</div>
+        <h2 class="mb-3">Загальна схема системи</h2>
+        <div class="w-full" style="max-width:960px;">
+          <!-- Top: UI -->
+          <div style="display:flex;justify-content:center;margin-bottom:10px;">
+            <div class="card b-blue" style="padding:10px 28px;text-align:center;font-weight:700;">
+              🖥 Streamlit UI <span style="font-weight:400;color:var(--muted);font-size:.85em;">— форма кейсу · AWAITING_DATA loop · synthesis interrupt</span>
+            </div>
+          </div>
+          <div style="text-align:center;color:var(--muted);font-size:1.4em;line-height:1;">↕</div>
+          <!-- Middle: LangGraph -->
+          <div class="card" style="margin:8px 0;padding:20px 24px;">
+            <div class="section-label" style="margin-bottom:14px;">LangGraph StateGraph + MemorySaver checkpointer</div>
+            <div class="pipeline">
+              <div class="p-node p-intake">🔍<br>Intake</div>
+              <span class="p-arrow">→</span>
+              <div class="p-node p-hyp">🧠<br>Hypothesis</div>
+              <span class="p-arrow">→</span>
+              <div class="p-node p-ev">🔬<br>Evidence</div>
+              <span class="p-arrow">→</span>
+              <div class="p-node p-da">👿<br>Devil's Adv.</div>
+              <span class="p-arrow">→</span>
+              <div class="p-node p-rc">🌳<br>Root Cause</div>
+              <span class="p-arrow">→</span>
+              <div class="p-node p-syn">⏸<br>Synthesis</div>
+              <span class="p-arrow">→</span>
+              <div class="p-node p-done">✅<br>DONE</div>
+            </div>
+          </div>
+          <!-- Bottom row -->
+          <div class="grid g-4 mt-2">
+            <div class="card" style="padding:12px 14px;text-align:center;">
+              <div style="font-size:1.3em;margin-bottom:6px;">🗄</div>
+              <div style="font-size:.8em;font-weight:700;color:var(--green);">Qdrant</div>
+              <div style="font-size:.72em;color:var(--muted);">літературний корпус<br>BGE-M3 dense+sparse</div>
+            </div>
+            <div class="card" style="padding:12px 14px;text-align:center;">
+              <div style="font-size:1.3em;margin-bottom:6px;">🗃</div>
+              <div style="font-size:.8em;font-weight:700;color:var(--amber);">MySQL</div>
+              <div style="font-size:.72em;color:var(--muted);">users · sessions<br>cases · answers</div>
+            </div>
+            <div class="card" style="padding:12px 14px;text-align:center;">
+              <div style="font-size:1.3em;margin-bottom:6px;">📊</div>
+              <div style="font-size:.8em;font-weight:700;color:var(--purple);">Langfuse</div>
+              <div style="font-size:.72em;color:var(--muted);">трейсинг · cost<br>self-hosted</div>
+            </div>
+            <div class="card" style="padding:12px 14px;text-align:center;">
+              <div style="font-size:1.3em;margin-bottom:6px;">🤖</div>
+              <div style="font-size:.8em;font-weight:700;color:var(--blue);">LLM</div>
+              <div style="font-size:.72em;color:var(--muted);">OpenAI · Ollama<br>Gemini (switchable)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════ SLIDE 4 — LangGraph -->
+      <div class="slide">
+        <div class="section-label">Оркестрація</div>
+        <h2 class="mb-2">LangGraph State Machine</h2>
+        <div class="accent-bar"></div>
+        <div class="grid g-2 w-full" style="max-width:920px;">
+          <div class="gap-col">
+            <div class="card b-blue">
+              <h3 class="em-b">StateGraph + фази</h3>
+              <p style="margin-bottom:10px;">Жорстка послідовність фаз — агент не може «пропустити» крок або порушити порядок.</p>
+              <pre><span class="kw">class</span> <span class="fn">Phase</span>(str, Enum):
+  INTAKE       = <span class="st">"intake"</span>
+  AWAITING_DATA = <span class="st">"awaiting_data"</span>
+  HYPOTHESES   = <span class="st">"hypotheses"</span>
+  EVIDENCE     = <span class="st">"evidence"</span>
+  CHALLENGE    = <span class="st">"challenge"</span>
+  ROOT_CAUSE   = <span class="st">"root_cause"</span>
+  SYNTHESIS    = <span class="st">"synthesis"</span>
+  DONE         = <span class="st">"done"</span></pre>
+            </div>
+            <div class="card b-purple">
+              <h3 class="em-p">interrupt() — Socratic step</h3>
+              <p style="margin-bottom:10px;">Synthesis-агент <em>зупиняє</em> граф до того, як LLM побачить відповідь. Студент ранжує першим.</p>
+              <pre><span class="cm"># synthesis.py</span>
+student_ranking = <span class="fn">interrupt</span>(question)
+<span class="cm"># --- граф заморожено ---</span>
+
+<span class="cm"># UI: Command(resume=ranking)</span>
+output = llm.<span class="fn">invoke</span>(context)</pre>
+            </div>
+          </div>
+          <div class="gap-col">
+            <div class="card b-cyan">
+              <h3 class="em-c">MemorySaver checkpointer</h3>
+              <p style="margin-bottom:10px;">Стан зберігається між HTTP-запитами. <code>thread_id</code> = UUID сесії, зберігається в Streamlit session_state і MySQL.</p>
+              <ul class="sl">
+                <li>AWAITING_DATA loop — студент доповнює форму, граф продовжується з тієї самої точки</li>
+                <li>Synthesis interrupt — студент ранжує, після чого resume відновлює вузол</li>
+                <li>Сесія відновлювана після перезавантаження (якщо SqliteSaver/MySQL checkpointer)</li>
+              </ul>
+            </div>
+            <div class="card b-green">
+              <h3 class="em-g">Conditional routing</h3>
+              <p style="margin-bottom:10px;">Після Intake граф маршрутизується залежно від повноти <code>PatientCase</code>:</p>
+              <pre><span class="kw">def</span> <span class="fn">route_after_intake</span>(state):
+  <span class="kw">if</span> state.missing_fields:
+    <span class="kw">return</span> <span class="st">"intake"</span>      <span class="cm"># loop</span>
+  <span class="kw">return</span> <span class="st">"hypothesis"</span></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════ SLIDE 5 — Intake -->
+      <div class="slide">
+        <div class="row mb-2" style="gap:14px;">
+          <div class="badge" style="background:rgba(59,130,246,.2);color:var(--blue);font-size:1em;">1</div>
+          <div class="section-label" style="margin:0;">Агент 1</div>
+        </div>
+        <h2 class="mb-2"><span class="em-b">Intake</span> — Completeness Gate</h2>
+        <div class="accent-bar"></div>
+        <div class="grid g-2 w-full" style="max-width:920px;">
+          <div class="gap-col">
+            <div class="card b-blue">
+              <h3>PatientCase — 8 обов'язкових полів</h3>
+              <pre><span class="kw">class</span> <span class="fn">PatientCase</span>(BaseModel):
+  chief_complaint:           str | None
+  history_of_present_illness:str | None
+  past_medical_history:      str | None
+  medications:               str | None
+  family_history:            str | None
+  systems_review:            str | None
+  risk_factors:              str | None
+  available_investigations:  str | None</pre>
+              <p class="mt-2">Поле = <code>"unavailable"</code> рахується як заповнене — студент не може «пропустити», лише явно позначити недоступним.</p>
+            </div>
+            <div class="card b-red">
+              <h3>Completeness gate (код, не LLM)</h3>
+              <p style="margin-bottom:8px;">Перевірка виконується програмно — LLM не може «домовитися» обійти gate:</p>
+              <pre>missing = state.patient_case.<span class="fn">missing_fields</span>()
+<span class="kw">if</span> missing:
+  <span class="kw">return</span> {
+    <span class="st">"phase"</span>: Phase.AWAITING_DATA,
+    <span class="st">"missing_fields"</span>: missing,
+    <span class="st">"intake_message"</span>: llm.<span class="fn">invoke</span>(...)
+  }</pre>
+            </div>
+          </div>
+          <div class="gap-col">
+            <div class="info-box">
+              <strong>🛡 Anti-bias: Premature Closure</strong><br>
+              Pipeline фізично заблокований, поки всі поля не заповнені або позначені «недоступно». LLM не отримує неповний кейс.
+            </div>
+            <div class="card b-cyan">
+              <h3>AWAITING_DATA loop в UI</h3>
+              <ul class="sl">
+                <li>LLM генерує питання про відсутні поля мовою студента</li>
+                <li>Форма зберігає вже заповнені поля між ітераціями</li>
+                <li>Відсутні поля підсвічуються червоним</li>
+                <li>Граф продовжується з тієї самої сесії (checkpointer)</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h3>Мультимовність</h3>
+              <p>Студент пише українською, польською, англійською — будь-якою мовою. LLM відповідає мовою студента. Пошук у базі літератури нормалізується до англійської.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════ SLIDE 6 — Hypothesis -->
+      <div class="slide">
+        <div class="row mb-2" style="gap:14px;">
+          <div class="badge" style="background:rgba(6,182,212,.2);color:var(--cyan);">2</div>
+          <div class="section-label" style="margin:0;">Агент 2</div>
+        </div>
+        <h2 class="mb-2"><span class="em-c">Hypothesis</span> — ≥ 5 неранжованих гіпотез</h2>
+        <div class="accent-bar"></div>
+        <div class="grid g-2 w-full" style="max-width:920px;">
+          <div class="gap-col">
+            <div class="card b-cyan">
+              <h3>Структурований вихід</h3>
+              <pre><span class="kw">class</span> <span class="fn">Hypothesis</span>(BaseModel):
+  id:              str   <span class="cm"># h1..h5+</span>
+  name:            str
+  rationale:       str
+  organ_system:    str
+  is_must_not_miss:<span class="kw">bool</span></pre>
+            </div>
+            <div class="card b-red">
+              <h3>3 архітектурні інваріанти (код)</h3>
+              <pre><span class="kw">if</span> <span class="fn">len</span>(hyps) &lt; <span class="nu">5</span>:
+  <span class="kw">raise</span> ValueError(<span class="st">"≥5 required"</span>)
+
+mnm = [h <span class="kw">for</span> h <span class="kw">in</span> hyps
+       <span class="kw">if</span> h.is_must_not_miss]
+<span class="kw">if not</span> mnm:
+  <span class="kw">raise</span> ValueError(<span class="st">"must-not-miss missing"</span>)
+
+systems = {h.organ_system <span class="kw">for</span> h <span class="kw">in</span> hyps}
+<span class="kw">if</span> <span class="fn">len</span>(systems) &lt; <span class="nu">2</span>:
+  <span class="kw">raise</span> ValueError(<span class="st">"≥2 systems required"</span>)</pre>
+              <p class="mt-2" style="font-size:.82em;">LangGraph автоматично повторює виклик при <code>ValueError</code>.</p>
+            </div>
+          </div>
+          <div class="gap-col">
+            <div class="info-box">
+              <strong>🛡 Anti-bias: Anchoring + Availability</strong><br>
+              5 гіпотез генеруються одночасно, до будь-якого ранжування. Devil's Advocate отримує лише список імен у алфавітному порядку — без ратіонале і без рейтингу.
+            </div>
+            <div class="card b-amber">
+              <h3>Must-not-miss категорія</h3>
+              <p style="margin-bottom:10px;">Агент зобов'язаний включити принаймні один «небезпечний» діагноз, навіть якщо він малоймовірний:</p>
+              <ul class="sl">
+                <li>Тромбоемболія легеневої артерії при болю в грудях</li>
+                <li>Субарахноїдальний крововилив при головному болі</li>
+                <li>Септичний артрит при болі в суглобі</li>
+                <li>Менінгіт при лихоманці + головному болі</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h3>Evaluation</h3>
+              <p>Golden set перевіряє <code>mnm_recall = 100 %</code> — жоден кейс не повинен пропустити небезпечний діагноз.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════ SLIDE 7 — Evidence + RAG -->
+      <div class="slide">
+        <div class="row mb-2" style="gap:14px;">
+          <div class="badge" style="background:rgba(16,185,129,.2);color:var(--green);">3</div>
+          <div class="section-label" style="margin:0;">Агент 3</div>
+        </div>
+        <h2 class="mb-2"><span class="em-g">Evidence</span> — Симетричний RAG retrieval</h2>
+        <div class="accent-bar"></div>
+        <div class="grid g-2 w-full" style="max-width:920px;">
+          <div class="gap-col">
+            <div class="card b-green">
+              <h3>Симетричний retrieval</h3>
+              <p style="margin-bottom:8px;">Для кожної гіпотези виконуються <em>два незалежних пошуки</em>:</p>
+              <pre><span class="cm"># LLM генерує 2 запити на гіпотезу:</span>
+<span class="cm"># FOR:     "evidence supporting {name}"</span>
+<span class="cm"># AGAINST: "evidence refuting {name}"</span>
+
+<span class="kw">for</span> hyp <span class="kw">in</span> hypotheses:
+  supporting = retriever.<span class="fn">search</span>(
+    hyp.for_query, k=<span class="nu">5</span>)
+  refuting = retriever.<span class="fn">search</span>(
+    hyp.against_query, k=<span class="nu">5</span>)</pre>
+            </div>
+            <div class="card b-cyan">
+              <h3>Програмна анти-галюцинація</h3>
+              <pre><span class="kw">def</span> <span class="fn">assert_citations_grounded</span>(used, retrieved):
+  retrieved_ids = {
+    c.pmid <span class="kw">for</span> c <span class="kw">in</span> retrieved
+  } | {c.doi <span class="kw">for</span> c <span class="kw">in</span> retrieved}
+  <span class="kw">for</span> c <span class="kw">in</span> used:
+    assert c.pmid <span class="kw">in</span> retrieved_ids \
+        <span class="kw">or</span> c.doi <span class="kw">in</span> retrieved_ids</pre>
+              <p class="mt-1" style="font-size:.82em;">LLM <em>не генерує</em> PMID/DOI — цитати беруться програмно з retrieved-контексту.</p>
+            </div>
+          </div>
+          <div class="gap-col">
+            <div class="info-box">
+              <strong>🛡 Anti-bias: Confirmation Bias</strong><br>
+              LLM фізично отримує і підтверджуючі, і спростовуючі докази для кожної гіпотези. Неможливо «забути» пошукати контраргументи.
+            </div>
+            <div class="card b-amber">
+              <h3>Evidence level ranking</h3>
+              <p style="margin-bottom:8px;">Ранжування за силою доказів, а не за країною протоколу:</p>
+              <table>
+                <tr><th>Рівень</th><th>Тип</th></tr>
+                <tr><td><span class="em-g">L1</span></td><td>Meta-analysis</td></tr>
+                <tr><td><span class="em-g">L2</span></td><td>Systematic review</td></tr>
+                <tr><td><span class="em-b">L3</span></td><td>RCT</td></tr>
+                <tr><td><span class="em-b">L4</span></td><td>Cohort</td></tr>
+                <tr><td><span class="em-a">L5–6</span></td><td>Case-control / Case report</td></tr>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════ SLIDE 8 — RAG pipeline -->
+      <div class="slide">
+        <div class="section-label">RAG пайплайн</div>
+        <h2 class="mb-2">Ingestion → BGE-M3 → Qdrant Hybrid Search</h2>
+        <div class="accent-bar"></div>
+        <div class="w-full" style="max-width:960px;">
+          <!-- Pipeline steps -->
+          <div class="grid g-4 mb-3">
+            <div class="card" style="text-align:center;padding:14px 10px;">
+              <div style="font-size:1.6em;margin-bottom:6px;">📡</div>
+              <div style="font-weight:700;font-size:.85em;margin-bottom:4px;">1. Ingestion</div>
+              <div style="font-size:.75em;color:var(--muted);">Europe PMC API<br>або NCBI E-utils<br>auto-fallback</div>
+            </div>
+            <div class="card" style="text-align:center;padding:14px 10px;">
+              <div style="font-size:1.6em;margin-bottom:6px;">✂️</div>
+              <div style="font-weight:700;font-size:.85em;margin-bottom:4px;">2. Chunking</div>
+              <div style="font-size:.75em;color:var(--muted);">Section-aware split<br>sliding window fallback<br>MD5 → UUID point_id</div>
+            </div>
+            <div class="card" style="text-align:center;padding:14px 10px;">
+              <div style="font-size:1.6em;margin-bottom:6px;">🧮</div>
+              <div style="font-weight:700;font-size:.85em;margin-bottom:4px;">3. BGE-M3</div>
+              <div style="font-size:.75em;color:var(--muted);">Dense + Sparse<br>в одній моделі<br>RTX 4080, ~2 GB</div>
+            </div>
+            <div class="card" style="text-align:center;padding:14px 10px;">
+              <div style="font-size:1.6em;margin-bottom:6px;">🔍</div>
+              <div style="font-weight:700;font-size:.85em;margin-bottom:4px;">4. Qdrant RRF</div>
+              <div style="font-size:.75em;color:var(--muted);">Named vectors<br>Reciprocal Rank Fusion<br>payload filters</div>
+            </div>
+          </div>
+          <div class="grid g-2">
+            <div class="card b-green">
+              <h3>BGE-M3 — чому?</h3>
+              <ul class="sl">
+                <li>Мультилінгвальна (студент пише будь-якою мовою)</li>
+                <li>Dense + Sparse в одній моделі — не потрібен окремий BM25</li>
+                <li>Запускається локально на GPU — нульова вартість embedding</li>
+                <li>1024-dim dense → пам'ять ~3.2 MB на 1000 чанків</li>
+              </ul>
+            </div>
+            <div class="card b-cyan">
+              <h3>Qdrant Hybrid Search (RRF)</h3>
+              <pre>Prefetch dense  (k=20) →┐
+Prefetch sparse (k=20) →┤ RRF fusion → top-k
+Payload filter:         │
+  year ≥ 2010          →┘
+  evidence_level ≤ 5</pre>
+              <p class="mt-2" style="font-size:.82em;">Idempotent upsert за PMID+chunk_index — безпечно запускати повторно.</p>
+            </div>
+          </div>
+          <div class="mt-2">
+            <div class="info-box">
+              <strong>Джерела (без API-ключа):</strong> Europe PMC (PubMed · PMC · BMC · PLOS · Cureus) → auto-fallback NCBI E-utilities при недоступності EBI сервера.
+              15 клінічних тем × 100–150 статей = ~1500 статей, ~5000–8000 чанків.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════ SLIDE 9 — Devil's Advocate -->
+      <div class="slide">
+        <div class="row mb-2" style="gap:14px;">
+          <div class="badge" style="background:rgba(239,68,68,.2);color:var(--red);">4</div>
+          <div class="section-label" style="margin:0;">Агент 4</div>
+        </div>
+        <h2 class="mb-2"><span class="em-r">Devil's Advocate</span> — Сліпа адверсаріальна критика</h2>
+        <div class="accent-bar"></div>
+        <div class="grid g-2 w-full" style="max-width:920px;">
+          <div class="gap-col">
+            <div class="card b-red">
+              <h3>blind_view() — key invariant</h3>
+              <p style="margin-bottom:8px;">Агент отримує <em>лише</em> кейс і список імен гіпотез в алфавітному порядку. Без ратіонале, без ранжування, без must-not-miss флагів:</p>
+              <pre><span class="kw">def</span> <span class="fn">blind_view</span>(state):
+  <span class="kw">return</span> {
+    <span class="st">"patient_case"</span>: state.patient_case,
+    <span class="st">"hypotheses"</span>: sorted(
+      [h.name <span class="kw">for</span> h <span class="kw">in</span> state.hypotheses]
+    ),
+    <span class="cm"># NO: rationale, ranking, mnm</span>
+  }</pre>
+              <p class="mt-1" style="font-size:.82em;">Ізоляція через <em>проєкцію стану</em>, не через промпт.</p>
+            </div>
+            <div class="card b-amber">
+              <h3>Structured output</h3>
+              <pre><span class="kw">class</span> <span class="fn">ChallengeReport</span>(BaseModel):
+  contradictions:           list[str]
+  alternative_explanations: dict[str, str]
+  discriminating_test:      str</pre>
+            </div>
+          </div>
+          <div class="gap-col">
+            <div class="info-box">
+              <strong>🛡 Anti-bias: Anchoring</strong><br>
+              Агент атакує гіпотези, не знаючи яка з них «провідна». Він не може підтвердити вже обраний діагноз — він може лише заперечувати.
+            </div>
+            <div class="card">
+              <h3>Що агент шукає</h3>
+              <ul class="sl">
+                <li><strong style="color:var(--text);">Суперечності</strong> — чи є симптоми, що суперечать кожній гіпотезі?</li>
+                <li><strong style="color:var(--text);">Альтернативні пояснення</strong> — ключовий симптом може мати іншу причину?</li>
+                <li><strong style="color:var(--text);">Discriminating test</strong> — яке одне дослідження найкраще розрізняє топ-2 гіпотези?</li>
+              </ul>
+            </div>
+            <div class="card b-cyan">
+              <h3>В UI</h3>
+              <p>Результат відображається у вкладці «👿 Адвокат диявола» — суперечності, альтернативи, ключове дослідження. Студент бачить ще до ранжування.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════ SLIDE 10 — Root Cause -->
+      <div class="slide">
+        <div class="row mb-2" style="gap:14px;">
+          <div class="badge" style="background:rgba(245,158,11,.2);color:var(--amber);">5</div>
+          <div class="section-label" style="margin:0;">Агент 5</div>
+        </div>
+        <h2 class="mb-2"><span class="em-a">Root Cause</span> — Погляд на весь організм</h2>
+        <div class="accent-bar"></div>
+        <div class="grid g-2 w-full" style="max-width:920px;">
+          <div class="gap-col">
+            <div class="card b-amber">
+              <h3>Що отримує агент</h3>
+              <p style="margin-bottom:8px;">Повний контекст сесії — все, що накопичилось:</p>
+              <ul class="sl">
+                <li>Кейс пацієнта (всі поля)</li>
+                <li>Список гіпотез з ратіонале</li>
+                <li>Зведення доказів (кількість ЗА і ПРОТИ по кожній)</li>
+                <li>Звіт Devil's Advocate (суперечності)</li>
+              </ul>
+            </div>
+            <div class="card b-green">
+              <h3>Structured output</h3>
+              <pre><span class="kw">class</span> <span class="fn">RootCauseAssessment</span>(BaseModel):
+  all_findings_explained: <span class="kw">bool</span>
+  unexplained_findings:   list[str]
+  candidate_underlying_conditions:
+                          list[str]
+  comment:                str | None</pre>
+            </div>
+          </div>
+          <div class="gap-col">
+            <div class="info-box">
+              <strong>🛡 Anti-bias: Search Satisficing</strong><br>
+              Агент перевіряє: чи пояснює <em>найкраща</em> гіпотеза <em>усі</em> знахідки? Якщо ні — це сигнал про можливу системну причину або другий діагноз.
+            </div>
+            <div class="card">
+              <h3>Приклад логіки</h3>
+              <p style="margin-bottom:10px;">Пацієнт з анемією, жовтяницею і ураженням нирок. Гіпотеза «аутоімунна гемолітична анемія» пояснює перші два, але не ниркову функцію.</p>
+              <div class="warn-box mt-2">
+                ⚠️ Агент позначить нирковий компонент як «unexplained_finding» і запропонує перевірити системний васкуліт (SLE) як underlying condition.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════ SLIDE 11 — Synthesis -->
+      <div class="slide">
+        <div class="row mb-2" style="gap:14px;">
+          <div class="badge" style="background:rgba(139,92,246,.2);color:var(--purple);">6</div>
+          <div class="section-label" style="margin:0;">Агент 6</div>
+        </div>
+        <h2 class="mb-2"><span class="em-p">Synthesis</span> — Сократівський крок + цитати</h2>
+        <div class="accent-bar"></div>
+        <div class="grid g-2 w-full" style="max-width:920px;">
+          <div class="gap-col">
+            <div class="card b-purple">
+              <h3>Послідовність виконання</h3>
+              <pre><span class="cm"># 1. Граф зупиняється ДО LLM</span>
+question = _socratic_question(state)
+student_ranking = <span class="fn">interrupt</span>(question)
+<span class="cm">#    ↑ UI показує форму ранжування</span>
+
+<span class="cm"># 2. Після resume:</span>
+output = llm.<span class="fn">invoke</span>(
+  [system, <span class="fn">HumanMessage</span>(context)]
+)
+
+<span class="cm"># 3. Цитати — програмно, не LLM</span>
+ranking = <span class="fn">_attach_citations</span>(
+  output.ranked_hypotheses, state
+)
+<span class="fn">assert_citations_grounded</span>(used, retrieved)</pre>
+            </div>
+            <div class="card b-cyan">
+              <h3>SynthesisResult</h3>
+              <pre><span class="kw">class</span> <span class="fn">SynthesisResult</span>(BaseModel):
+  ranking:          list[RankedHypothesis]
+  workup_plan:      list[str]
+  evidence_summary: str
+  socratic_feedback:str <span class="cm"># ← ключове</span></pre>
+              <p class="mt-2" style="font-size:.82em;"><code>socratic_feedback</code> — порівняння рейтингу студента з системним + пояснення розбіжностей.</p>
+            </div>
+          </div>
+          <div class="gap-col">
+            <div class="info-box">
+              <strong>🛡 Ключова педагогічна цінність</strong><br>
+              Студент ранжує <em>самостійно</em>, без підказки системи. Лише потім система порівнює і пояснює, де і чому міркування розійшлися.
+            </div>
+            <div class="card">
+              <h3>Що бачить студент (UI)</h3>
+              <ul class="sl">
+                <li>🥇🥈🥉 Ранжований диференційний ряд із заповіданням правдоподібності</li>
+                <li>📚 Ключові цитати для топ-3 (PMID/DOI, рівень доказовості)</li>
+                <li>📋 Планований план обстеження (workup)</li>
+                <li>💬 Сократівський фідбек на їх ранжування</li>
+                <li>📊 Якість доказової бази (evidence_summary)</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════ SLIDE 12 — Tech stack -->
+      <div class="slide">
+        <div class="section-label">Технології</div>
+        <h2 class="mb-3">Технологічний стек</h2>
+        <div class="grid g-3 w-full" style="max-width:960px;">
+          <div class="card b-blue" style="padding:16px;">
+            <div class="section-label" style="margin-bottom:10px;">Оркестрація</div>
+            <ul class="sl">
+              <li><strong style="color:var(--text);">LangGraph</strong> — StateGraph, checkpointer, interrupt(), streaming</li>
+              <li><strong style="color:var(--text);">LangChain</strong> — init_chat_model, structured outputs, callbacks</li>
+              <li><strong style="color:var(--text);">Pydantic v2</strong> — схеми стану, валідація structured output</li>
+            </ul>
+          </div>
+          <div class="card b-green" style="padding:16px;">
+            <div class="section-label" style="margin-bottom:10px;">LLM провайдери</div>
+            <ul class="sl">
+              <li><strong style="color:var(--text);">OpenAI GPT-4.1</strong> — за замовчуванням (хмарний)</li>
+              <li><strong style="color:var(--text);">Ollama Llama/Qwen</strong> — локально на RTX 4080 (безкоштовно)</li>
+              <li><strong style="color:var(--text);">Google Gemini</strong> — альтернатива через API</li>
+            </ul>
+            <div class="mt-2" style="font-size:.78em;color:var(--muted);">Перемикання через <code>MEDDX_AGENT_MODELS</code> в .env — жодного хардкоду в агентах.</div>
+          </div>
+          <div class="card b-cyan" style="padding:16px;">
+            <div class="section-label" style="margin-bottom:10px;">RAG шар</div>
+            <ul class="sl">
+              <li><strong style="color:var(--text);">BGE-M3</strong> — dense+sparse embeddings (GPU)</li>
+              <li><strong style="color:var(--text);">Qdrant</strong> — hybrid search RRF, payload filters</li>
+              <li><strong style="color:var(--text);">httpx</strong> — Europe PMC / NCBI API client</li>
+            </ul>
+          </div>
+          <div class="card b-amber" style="padding:16px;">
+            <div class="section-label" style="margin-bottom:10px;">Сховища</div>
+            <ul class="sl">
+              <li><strong style="color:var(--text);">MySQL 8</strong> — users, sessions, cases, answers</li>
+              <li><strong style="color:var(--text);">SQLAlchemy 2</strong> — ORM з Mapped[T] типами</li>
+              <li><strong style="color:var(--text);">Alembic</strong> — версіонування схеми</li>
+            </ul>
+          </div>
+          <div class="card b-purple" style="padding:16px;">
+            <div class="section-label" style="margin-bottom:10px;">UI та спостережуваність</div>
+            <ul class="sl">
+              <li><strong style="color:var(--text);">Streamlit</strong> — web UI (форма + вкладки + interrupt)</li>
+              <li><strong style="color:var(--text);">Langfuse v3</strong> — трейсинг, cost, evals (self-hosted)</li>
+              <li><strong style="color:var(--text);">Docker Compose</strong> — одна команда для всього стека</li>
+            </ul>
+          </div>
+          <div class="card" style="padding:16px;">
+            <div class="section-label" style="margin-bottom:10px;">Інфраструктура</div>
+            <ul class="sl">
+              <li>Manjaro Linux, i9-14900HX, 94 GB RAM</li>
+              <li>RTX 4080 Mobile 12 GB VRAM — BGE-M3, Ollama</li>
+              <li>pytest 155 тестів — без API/GPU/Docker</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════ SLIDE 13 — Data stores -->
+      <div class="slide">
+        <div class="section-label">Сховища даних</div>
+        <h2 class="mb-3">Qdrant vs MySQL — чітке розподілення відповідальності</h2>
+        <div class="grid g-2 w-full" style="max-width:920px;">
+          <div class="gap-col">
+            <div class="card b-green">
+              <div class="row mb-2" style="gap:10px;">
+                <div style="font-size:1.4em;">🗄</div>
+                <h3 class="em-g">Qdrant — літературний корпус</h3>
+              </div>
+              <p class="mb-2">Векторна БД для семантичного пошуку по науковим статтям.</p>
+              <table>
+                <tr><th>Поле</th><th>Тип</th></tr>
+                <tr><td>dense_vector</td><td>1024-dim float</td></tr>
+                <tr><td>sparse_vector</td><td>BM25-IDF weights</td></tr>
+                <tr><td>pmid / doi</td><td>string payload</td></tr>
+                <tr><td>year / study_type</td><td>filter payload</td></tr>
+                <tr><td>evidence_level</td><td>int 1–8 payload</td></tr>
+                <tr><td>abstract_text</td><td>string payload</td></tr>
+              </table>
+            </div>
+            <div class="inv-box mt-1">
+              ADR-0002: Qdrant — нативний hybrid search (dense+sparse) + payload filters в одному запиті. Chroma/pgvector цього не мають.
+            </div>
+          </div>
+          <div class="gap-col">
+            <div class="card b-amber">
+              <div class="row mb-2" style="gap:10px;">
+                <div style="font-size:1.4em;">🗃</div>
+                <h3 class="em-a">MySQL — транзакційні дані</h3>
+              </div>
+              <p class="mb-2">5 моделей SQLAlchemy 2 для студентської активності:</p>
+              <ul class="sl">
+                <li><code>User</code> — email, name, locale</li>
+                <li><code>DiagnosticSession</code> — thread_id, phase, status</li>
+                <li><code>Case</code> — patient_case JSON, session FK</li>
+                <li><code>CaseHypothesis</code> — hypothesis_id, rank_final</li>
+                <li><code>StudentAnswer</code> — ranking JSON, feedback JSON</li>
+              </ul>
+            </div>
+            <div class="card b-red" style="padding:14px;">
+              <h3 style="font-size:.9em;margin-bottom:8px;">Cascade / SET NULL стратегія</h3>
+              <pre style="font-size:.75em;">User ──SET NULL──→ Session
+Session ──CASCADE──→ Case
+Case    ──CASCADE──→ Hypothesis
+Session ──CASCADE──→ StudentAnswer</pre>
+              <p style="font-size:.78em;margin-top:8px;color:var(--muted);">Видалення користувача анонімізує сесії (не видаляє навчальні дані).</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════ SLIDE 14 — Observability -->
+      <div class="slide">
+        <div class="section-label">Спостережуваність</div>
+        <h2 class="mb-3">Langfuse — трейсинг 6-агентного пайплайну</h2>
+        <div class="grid g-2 w-full" style="max-width:920px;">
+          <div class="gap-col">
+            <div class="card b-purple">
+              <h3>Що трейситься автоматично</h3>
+              <ul class="sl">
+                <li>Кожен LLM-виклик (вхід, вихід, токени, вартість)</li>
+                <li>Retrieval запити до Qdrant (latency, k, query)</li>
+                <li>Фаза переходу в StateGraph (span per node)</li>
+                <li>interrupt() та resume() як окремі spans</li>
+              </ul>
+            </div>
+            <div class="card b-blue">
+              <h3>Self-hosted docker-compose</h3>
+              <p style="margin-bottom:8px;">Langfuse v3 стек — 6 сервісів в одному <code>docker compose up -d</code>:</p>
+              <ul class="sl" style="font-size:.85em;">
+                <li>langfuse-web (<code>:3000</code>) — UI</li>
+                <li>langfuse-worker — async event processing</li>
+                <li>PostgreSQL — metadata store</li>
+                <li>ClickHouse — аналітика трейсів</li>
+                <li>Redis — черга</li>
+                <li>MinIO — artifact storage</li>
+              </ul>
+            </div>
+          </div>
+          <div class="gap-col">
+            <div class="card b-cyan">
+              <h3>Інтеграція (zero-config)</h3>
+              <pre><span class="cm"># llm/factory.py</span>
+<span class="kw">from</span> langfuse.callback <span class="kw">import</span> CallbackHandler
+
+callbacks = []
+<span class="kw">if</span> settings.langfuse_public_key:
+  callbacks = [<span class="fn">CallbackHandler</span>()]
+
+llm = <span class="fn">init_chat_model</span>(model,
+        callbacks=callbacks)</pre>
+              <p class="mt-2" style="font-size:.82em;">Без ключів — <code>callbacks = []</code>, трейсинг вимкнено. Нічого не ламається.</p>
+            </div>
+            <div class="card">
+              <h3>Що аналізувати в Langfuse</h3>
+              <ul class="sl">
+                <li>Середня вартість однієї діагностичної сесії ($)</li>
+                <li>Latency по агентах — де bottleneck?</li>
+                <li>Яка модель дає кращий mnm_recall при меншій ціні?</li>
+                <li>Scores: прив'язати golden-set метрики до трейсів</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════ SLIDE 15 — Evaluation -->
+      <div class="slide">
+        <div class="section-label">Оцінка якості</div>
+        <h2 class="mb-3">Golden Set — 10 клінічних вінєток</h2>
+        <div class="grid g-2 w-full" style="max-width:960px;">
+          <div>
+            <div class="grid g-3 mb-3">
+              <div class="metric">
+                <div class="metric-val em-g">100%</div>
+                <div class="metric-lbl">mnm_recall<br><em style="color:var(--red);">обов'язково</em></div>
+              </div>
+              <div class="metric">
+                <div class="metric-val em-b">≥80%</div>
+                <div class="metric-lbl">top-5<br>recall</div>
+              </div>
+              <div class="metric">
+                <div class="metric-val em-c">≥70%</div>
+                <div class="metric-lbl">evidence<br>symmetry</div>
+              </div>
+            </div>
+            <table>
+              <tr><th>Кейс</th><th>Діагноз</th><th>Bias</th></tr>
+              <tr><td>case_01</td><td>STEMI</td><td><span class="tag t-red">Anchoring</span></td></tr>
+              <tr><td>case_02</td><td>SAH</td><td><span class="tag t-red">Anchoring</span></td></tr>
+              <tr><td>case_03</td><td>PE</td><td><span class="tag t-blue">Confirmation</span></td></tr>
+              <tr><td>case_04</td><td>Bacterial meningitis</td><td><span class="tag t-amber">Premature closure</span></td></tr>
+              <tr><td>case_05</td><td>HCM</td><td><span class="tag t-cyan">Availability</span></td></tr>
+              <tr><td>case_06</td><td>Hodgkin lymphoma</td><td><span class="tag t-purple">Satisficing</span></td></tr>
+              <tr><td>case_07</td><td>Cholangitis</td><td><span class="tag t-amber">Premature closure</span></td></tr>
+              <tr><td>case_08</td><td>Lung cancer</td><td><span class="tag t-cyan">Availability</span></td></tr>
+              <tr><td>case_09</td><td>AIHA</td><td><span class="tag t-blue">Confirmation</span></td></tr>
+              <tr><td>case_10</td><td>Septic arthritis</td><td><span class="tag t-purple">Satisficing</span></td></tr>
+            </table>
+          </div>
+          <div class="gap-col">
+            <div class="inv-box">
+              <code>mnm_recall = 100 %</code> — єдина метрика з жорстким порогом.<br>
+              Exit code 1 якщо хоч один кейс порушив інваріант → інтегрується в CI.
+            </div>
+            <div class="card b-green">
+              <h3>Запуск</h3>
+              <pre>make eval             <span class="cm"># всі 10 кейсів</span>
+make eval EVAL_CASES=3 <span class="cm"># перші 3</span>
+python scripts/run_eval.py \
+  --out data/eval.json</pre>
+            </div>
+            <div class="card">
+              <h3>Нейтральний resume</h3>
+              <p style="font-size:.85em;">Synthesis interrupt в eval автоматично отримує нейтральне ранжування «1, 2, 3…» — студент не потрібен для вимірювання якості гіпотез і доказів.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════ SLIDE 16 — Future -->
+      <div class="slide">
+        <div class="section-label">Майбутній розвиток</div>
+        <h2 class="mb-3">Roadmap — від курсового до реального продукту</h2>
+        <div class="grid g-3 w-full" style="max-width:960px;">
+
+          <div class="rm-phase">
+            <div class="rm-title">
+              <div class="rm-dot" style="background:var(--green);"></div>
+              <span class="em-g">Короткострокові</span>
+              <span class="tag t-green" style="margin-left:auto;">~3 місяці</span>
+            </div>
+            <div class="rm-items">
+              <div class="rm-item">Langfuse Evals — автоматичний скоринг трейсів через golden set + score API</div>
+              <div class="rm-item">Локальний reranker <code>bge-reranker-v2-m3</code> поверх hybrid retrieval (↑ precision)</div>
+              <div class="rm-item">Веб-пошук свіжих публікацій (Tavily/SerpAPI) поверх локального Qdrant-індексу</div>
+              <div class="rm-item">LangGraph streaming → Streamlit st.write_stream() для live вводу токенів</div>
+              <div class="rm-item">Input/output guard — захист від prompt injection у медичних полях</div>
+            </div>
+          </div>
+
+          <div class="rm-phase">
+            <div class="rm-title">
+              <div class="rm-dot" style="background:var(--blue);"></div>
+              <span class="em-b">Середньострокові</span>
+              <span class="tag t-blue" style="margin-left:auto;">~6 місяців</span>
+            </div>
+            <div class="rm-items">
+              <div class="rm-item">Персональна аналітика — які упередження типові для конкретного студента?</div>
+              <div class="rm-item">Spaced repetition — повторення кейсів де були помилки (SM-2 алгоритм)</div>
+              <div class="rm-item">Multi-user auth (FastAPI + JWT) + список сесій в особистому кабінеті</div>
+              <div class="rm-item">Клінічний куратор — викладач бачить агреговану статистику групи</div>
+              <div class="rm-item">Розширення corpus: клінічні настанови WHO/UpToDate-open + підручники (open-access)</div>
+            </div>
+          </div>
+
+          <div class="rm-phase">
+            <div class="rm-title">
+              <div class="rm-dot" style="background:var(--purple);"></div>
+              <span class="em-p">Довгострокові</span>
+              <span class="tag t-purple" style="margin-left:auto;">~1 рік</span>
+            </div>
+            <div class="rm-items">
+              <div class="rm-item">Інтеграція з симуляторами (OpenSimMan, Virtual Patient) — динамічний кейс замість форми</div>
+              <div class="rm-item">Мультиагентна дискусія — два агенти захищають різні гіпотези, студент арбітр</div>
+              <div class="rm-item">Дослідницький датасет — анонімний export bias-патернів для медичних досліджень</div>
+              <div class="rm-item">Мобільний додаток (PWA / React Native) — кейс-завдання між парами</div>
+              <div class="rm-item">Контекстуальна адаптація — рівень складності залежно від року навчання студента</div>
+            </div>
+          </div>
+
+        </div>
+        <div class="w-full mt-3" style="max-width:960px;">
+          <div class="info-box">
+            <strong>Ключовий принцип розвитку:</strong> кожен новий агент або функція повинні <em>підсилювати</em> антибіасові інваріанти —
+            не послаблювати gate completeness, не розкривати ранжування Devil's Advocate, не генерувати цитати без грандинг-перевірки.
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════ SLIDE 17 — Summary -->
+      <div class="slide center slide-bg-glow" style="align-items:center;">
+        <div style="max-width:720px;">
+          <div class="tag t-green mb-3" style="margin-bottom:20px;">Підсумок</div>
+          <h2 class="gradient-text mb-3" style="font-size:clamp(1.6em,3vw,2.4em);margin-bottom:16px;">
+            MedDx — архітектура як ліки від упереджень
+          </h2>
+          <div class="accent-bar" style="margin:0 auto 24px;"></div>
+          <div class="grid g-2" style="text-align:left;margin-bottom:24px;">
+            <div class="card b-green">
+              <h3>✓ Що зроблено</h3>
+              <ul class="sl" style="font-size:.85em;">
+                <li>6 спеціалізованих LangGraph агентів</li>
+                <li>Hybrid RAG: BGE-M3 + Qdrant RRF</li>
+                <li>interrupt() Socratic step</li>
+                <li>MySQL сесії + Langfuse трейсинг</li>
+                <li>155 тестів, golden set evaluation</li>
+                <li>Europe PMC + NCBI auto-fallback</li>
+              </ul>
+            </div>
+            <div class="card b-blue">
+              <h3>→ Наступний крок</h3>
+              <ul class="sl" style="font-size:.85em;">
+                <li>Запустити <code>make ingest-corpus SOURCE=ncbi</code></li>
+                <li>Запустити <code>make eval</code> — перевірити mnm_recall</li>
+                <li>Відкрити Langfuse → порівняти агентів</li>
+                <li>Додати reranker для ↑ precision</li>
+                <li>Інтегрувати input security guard</li>
+              </ul>
+            </div>
+          </div>
+          <div class="warn-box" style="font-size:.85em;">
+            ⚠️ <strong>Educational tool only.</strong> Не для клінічного застосування. Не замінює лікаря.
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /track -->
+  </div><!-- /track-wrap -->
+
+  <div class="nav">
+    <button id="btn-prev" onclick="go(-1)">←</button>
+    <span class="counter" id="counter">1 / 17</span>
+    <button id="btn-next" onclick="go(1)">→</button>
+    <span class="hint">← → або клавіші зі стрілками</span>
+  </div>
+</div>
+
+<script>
+const TOTAL = 17;
+let cur = 0;
+
+const track  = document.getElementById('track');
+const pfill  = document.getElementById('pfill');
+const counter = document.getElementById('counter');
+const btnPrev = document.getElementById('btn-prev');
+const btnNext = document.getElementById('btn-next');
+
+function render() {
+  track.style.transform = `translateX(-${cur * 100}%)`;
+  pfill.style.width = `${((cur + 1) / TOTAL) * 100}%`;
+  counter.textContent = `${cur + 1} / ${TOTAL}`;
+  btnPrev.disabled = cur === 0;
+  btnNext.disabled = cur === TOTAL - 1;
+}
+
+function go(dir) {
+  const next = cur + dir;
+  if (next < 0 || next >= TOTAL) return;
+  cur = next;
+  render();
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') go(1);
+  if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')                     go(-1);
+  if (e.key === 'Home') { cur = 0;         render(); }
+  if (e.key === 'End')  { cur = TOTAL - 1; render(); }
+});
+
+// Touch / swipe support
+let tx = 0;
+document.addEventListener('touchstart', e => { tx = e.touches[0].clientX; }, {passive:true});
+document.addEventListener('touchend',   e => {
+  const dx = e.changedTouches[0].clientX - tx;
+  if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
+}, {passive:true});
+
+render();
+</script>
+</body>
+</html>
