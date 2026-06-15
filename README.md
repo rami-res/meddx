@@ -36,3 +36,18 @@ streamlit run app/streamlit_app.py
 ```
 
 Langfuse UI: http://localhost:3000 · Qdrant dashboard: http://localhost:6333/dashboard
+
+## Start with Makefile
+
+### Типовий сценарій першого запуску з корпусом:
+
+```bash
+make setup                  # .env
+make infra                  # Qdrant + MySQL
+make migrate                # Alembic
+pip install FlagEmbedding   # BGE-M3, ~2 GB
+make ingest-demo            # швидка перевірка
+make corpus-status          # ~150 точок?
+make ingest-corpus          # повний корпус (~1500 статей)
+make app                    # Streamlit :8501
+```
