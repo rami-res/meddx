@@ -84,7 +84,7 @@ Streamlit UI
 | Docker + Compose | Docker 24+ | для Qdrant, MySQL, Langfuse |
 | GPU (CUDA) | RTX 4080 / 12 GB VRAM | тільки для BGE-M3 ембедінгів; без GPU інжест неможливий |
 | RAM | 16 GB+ | 94 GB на dev-машині, але ~16 GB достатньо без GPU-моделей |
-| Інтернет | потрібен | Europe PMC API (інжест), OpenAI API (агенти) |
+| Інтернет | потрібен | Europe PMC або NCBI API (інжест), OpenAI API (агенти) |
 
 **Без GPU:** інжест корпусу (BGE-M3) не запуститься, але весь граф і UI працюють — Evidence-агент деградує gracefully («корпус порожній»).
 
@@ -160,11 +160,22 @@ alembic current                             # → 3468734894c4 (head)
 
 ## Інжест корпусу (опційно, потрібен GPU, API-ключ не потрібен)
 
-Інжест використовує лише **локальні ресурси**: Europe PMC (публічний REST API),
-BGE-M3 (локальна модель на GPU), Qdrant (локальний Docker). OpenAI та інші
-LLM-ключі не потрібні і не читаються під час інжесту.
+Інжест використовує лише **локальні ресурси**: BGE-M3 (модель на GPU) і Qdrant (Docker).
+Дані отримуються з публічних API без будь-яких ключів.
 
-RAG-компонент працює лише після наповнення Qdrant. Без інжесту Evidence-агент повернє порожній список цитат, але решта пайплайну (Hypothesis, Devil's Advocate, Root-Cause, Synthesis) залишиться функціональною.
+RAG-компонент працює лише після наповнення Qdrant. Без інжесту Evidence-агент повернє
+порожній список цитат, але решта пайплайну залишається функціональною.
+
+### Джерела статей
+
+| Режим (`--source`) | Хост | Покриття |
+|---|---|---|
+| `auto` *(за замовчуванням)* | EBI → NIH (fallback) | Europe PMC, потім NCBI якщо EBI недоступний |
+| `europe-pmc` | `www.ebi.ac.uk` | PubMed, PMC, BMC, PLOS, Cureus |
+| `ncbi` | `eutils.ncbi.nlm.nih.gov` | PubMed/MEDLINE |
+
+Режим `auto` автоматично перемикається на NCBI при будь-якій HTTP-помилці з боку EBI
+(503, 404, таймаут). Формат результатів однаковий — chunker і embedder не змінюються.
 
 ```bash
 # Швидка перевірка (~5 хв, 3 теми × 50 статей):
@@ -173,8 +184,12 @@ make ingest-demo
 # Повний навчальний корпус (~30 хв, 15 тем × 100–150 статей):
 make ingest-corpus
 
+# Якщо Europe PMC недоступний — примусово через NCBI:
+make ingest-corpus SOURCE=ncbi
+
 # Одна довільна тема:
 make ingest Q="sepsis diagnosis criteria" L=100
+make ingest Q="sepsis diagnosis criteria" L=100 SOURCE=ncbi
 
 # Стан колекції:
 make corpus-status
@@ -201,13 +216,13 @@ src/meddx/
   graph/                    — StateGraph: вузли, ребра, conditional routing
   llm/                      — фабрика init_chat_model + Langfuse callback
   rag/                      — BGE-M3 embedder, Qdrant store, hybrid retriever
-  ingestion/                — Europe PMC client, section-aware chunker
+  ingestion/                — Europe PMC + NCBI clients, section-aware chunker
   db/                       — SQLAlchemy моделі, репозиторії, Alembic env
   schemas/                  — Pydantic: PatientCase, Hypothesis, DiagnosticState
   prompts/                  — system prompts агентів (по одному файлу)
   config.py                 — pydantic-settings: ключі, per-agent model map
 scripts/
-  ingest.py                 — CLI інжесту (Europe PMC → BGE-M3 → Qdrant)
+  ingest.py                 — CLI інжесту (--source auto|europe-pmc|ncbi → BGE-M3 → Qdrant)
   corpus_status.py          — стан Qdrant-колекції
   corpus_reset.py           — видалення колекції з підтвердженням
   run_demo.py               — демо без API-ключів (stub-агенти)
